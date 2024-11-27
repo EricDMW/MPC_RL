@@ -42,17 +42,17 @@ def get_args(device):
         'dim_action': 3,
         'dims_hidden_neurons': (128,256,512,512,256,128),
         'lr_actor': 0.0001,
-        'lr_critic': 0.001,
+        'lr_critic': 0.0001,
         'smooth': 0.99,
-        'discount': 0.995,
+        'discount': 0.99,
         'sig': 0.9,# define the exploration
-        'batch_size': 2048,
-        'replay_buffer_size': 500000,
+        'batch_size': 128,
+        'replay_buffer_size': 50000,
         'seed': 7,
         'max_episode': 500,
         'device':device,
         'reward_scale': 1,
-        'tau':0.05
+        'tau':0.005
 
     }
     return config
@@ -69,6 +69,7 @@ def main():
     
     
     # ensure tensor
+    
     Tensor = torch.DoubleTensor
     torch.set_default_tensor_type(Tensor)
     

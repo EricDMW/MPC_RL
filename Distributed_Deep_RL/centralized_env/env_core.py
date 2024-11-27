@@ -53,6 +53,9 @@ class EnvCore(object):
         # bonus value
         self.bonus = 10
        
+       
+        # control reward withhould
+        self.withould = 0.05
         
         self.vr_range = [i for i in range(10,21)]
         
@@ -149,17 +152,33 @@ class EnvCore(object):
         #     tqdm.write('current step {}'.format(self.step_lenth))
         
         # blow up punishment
+        
+        # setting 1: can assure not blow up, but not optimal
+        #####################################################################1############################################
+        '''
+        if trunc
+         total_reward -= (1-self.step_lenth / self.boundaray_step_lenth) * 3 * 10**2
+        else
+         total_reward += 3 * 100 * self.step_lenth/self.boundaray_step_lenth
+        if done
+         total_reward += 3 * 1000  
+        '''
+        
+        '''
         if truc:
             # tqdm.write('state norm {}, {}, {}'.format(torch.norm(torch.tensor(sub_agent_obs[0])),torch.norm(torch.tensor(sub_agent_obs[1])),torch.norm(torch.tensor(sub_agent_obs[2]))))
-            # total_reward -= (1-self.step_lenth / self.boundaray_step_lenth) * 3 * 10**2
-            total_reward -= 300 * (self.boundaray_step_lenth-self.step_lenth)
+            total_reward -= (1-self.step_lenth / self.boundaray_step_lenth) * 3 * 10**2
+
         else:
-            # total_reward += 3 * 100 * self.step_lenth/self.boundaray_step_lenth
-            total_reward += 3 * 10
-        
+            # reward matters
+            total_reward += 3 * 100 * self.step_lenth/self.boundaray_step_lenth
+
         
         if done:
-            total_reward += 3 * 1000  
+            total_reward += 3 * 1000 
+        ''' 
+        #####################################################################1############################################
+        
             
         return [detached_obs, total_reward, done, truc, sub_agent_info]
     
