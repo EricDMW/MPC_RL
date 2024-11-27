@@ -52,7 +52,6 @@ class DDPG(nn.Module):
         t = buffer.sample(self.batch_size)
 
 
-        # TODO: Perform the updates for the actor and critic networks
         # Extract the sampled transitions
         obs = t.obs
         action = t.action
