@@ -29,7 +29,8 @@ class EnvCore(object):
         
         self.v_r = 15
         
-        self.weight = [1, 10, 20, 30, 10, 20, 30]
+        # self.weight = [1, 10, 20, 30, 10, 20, 30]
+        self.weight = [10, 10, 20, 30, 10, 20, 30]
         
         
             

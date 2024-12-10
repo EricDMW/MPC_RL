@@ -1,156 +1,136 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import sys
-import os
-import socket
-import setproctitle
+"""
+@File   : execution_cen.py
+@Author : Dongming Wang
+@Email  : dongming.wang@email.ucr.edu
+@Project: MPC
+@Date   : 11/26/2024
+@Time   : 20:16:10
+@Info   : for execution
+"""
+
 import numpy as np
-import torch
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from scipy.io import savemat
-# Setting the dir for config
-parent_dir = os.path.abspath(os.path.join(os.getcwd(), "."))
-print(parent_dir)
-sys.path.append(parent_dir)
-
+import sys
+import torch 
+import os
+import torch.nn as nn
+import datetime
+import copy
+import numpy.random as nr
+import numpy as np
+import gymnasium as gym
+from torch.utils.tensorboard import SummaryWriter
+from typing import Tuple
+from collections import namedtuple
+from collections import deque
+from ddpg import DDPG
+from replaybuffer import ReplayBuffer
+from tqdm import tqdm
+from tqdm import trange
 from pathlib import Path
-from light_mappo.config import get_config
-from light_mappo.envs.env_wrappers import DummyVecEnv
-from light_mappo.envs.env_continuous import ContinuousActionEnv
-from light_mappo.algorithms.algorithm.r_actor_critic import R_Actor, R_Critic
-from light_mappo.algorithms.algorithm.rMAPPOPolicy import RMAPPOPolicy as Policy
-from light_mappo.algorithms.algorithm.r_mappo import RMAPPO as TrainAlgo
-import pdb
 
-# add env parameters
-def parse_args(args, parser):
-    parser.add_argument("--scenario_name", type=str, default="MyEnv", help="Which scenario to run on")
-    # parser.add_argument("--num_landmarks", type=int, default=3, hlep="Choose number of landmaks")
-    parser.add_argument("--agent_num", type=int, default=3, help="number of agents")
+import matplotlib.pyplot as plt
+import tqdm
+from tqdm import tqdm
+from tqdm import trange
 
-    all_args = parser.parse_known_args(args)[0]
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-    return all_args
+# from light_mappo.envs.env_continuous import ContinuousActionEnv
+# from System_model.NlFuncGap import NlFuncGap
+from centralized_env.env_continuous import ContinuousActionEnv
+
+def env_built():
+    # env = gym.make('LunarLanderContinuous-v2')
+    env = ContinuousActionEnv()
+    return env
+
+def get_args(device):
+
+
+    config = {
+        'dim_obs': 33,
+        'dim_action': 3,
+        'dims_hidden_neurons': (128,256,512,512,256,128),
+        'lr_actor': 0.0001,
+        'lr_critic': 0.0001,
+        'smooth': 0.99,
+        'discount': 0.99,
+        'sig': 0.9,# define the exploration
+        'batch_size': 128,
+        'replay_buffer_size': 50000,
+        'seed': 7,
+        'max_episode': 500,
+        'device':device,
+        'reward_scale': 1,
+        'tau':0.005
+
+    }
+    config_3 = {
+        'dim_obs': 33,
+        'dim_action': 3,
+        'dims_hidden_neurons': (128,256,256,128), # lower capacity, higher convergence speed
+        'lr_actor': 0.0001,
+        'lr_critic': 0.0001,
+        'smooth': 0.99,
+        'discount': 0.99,
+        'sig': 0.9,# define the exploration
+        'batch_size': 128,
+        'replay_buffer_size': 50000,
+        'seed': 7,
+        'max_episode': 500,
+        'device':device,
+        'reward_scale': 1,
+        'tau':0.005
+
+    }
+    return config
+
+
+def main():
+    # Choose the device 
+    if torch.cuda.is_available():
+        os.environ["CUDA_VISIBLE_DEVICES"]="0"
+        device = torch.device('cuda:0')
+    else:
+        device = torch.device('cpu')
+    print('Found device at: {}'.format(device))
     
-
-
-def main(args):
-    # Configure
-    device = torch.device('cpu')
-
-    parser = get_config()
-    all_args = parse_args(args, parser)
+    # ensure tensor
     
-
-    # set the environment
-    envs = ContinuousActionEnv()
-
-    share_observation_space = envs.share_observation_space[0] if all_args.use_centralized_V else envs.observation_space[0]
-
-    policy = []
-    for agent_id in range(all_args.agent_num):
-            share_observation_space = (
-                envs.share_observation_space[agent_id]
-                if all_args.use_centralized_V
-                else envs.observation_space[agent_id]
-            )
-            # policy network
-            po = Policy(
-                all_args,
-                envs.observation_space[agent_id],
-                share_observation_space,
-                envs.action_space[agent_id],
-                device=device,
-            )
-            policy.append(po)
-
-    trainer = []
-    for agent_id in range(all_args.agent_num):
-        # algorithm
-        tr = TrainAlgo(all_args, policy[agent_id], device=device)
+    Tensor = torch.DoubleTensor
+    torch.set_default_tensor_type(Tensor)
+    
+    config = get_args(device)
+    
+    # environment building    
+    env = env_built()
+    
+    ddpg = DDPG(config).to(device)
+    
+    policy = ddpg.actor
+    policy.load_state_dict(torch.load("/home/dongmingwang/project/Data_Driven_MPC/Distributed_Deep_RL/model/actor.pt", map_location=device,weights_only=True))
+    
+    obs = env.env.reset()
+    
+    record = []
+    for _ in trange(1000):
         
-        share_observation_space = (
-            envs.share_observation_space[agent_id]
-            if all_args.use_centralized_V
-            else envs.observation_space[agent_id]
-        )
+        obs_tensor = torch.tensor(obs).type(Tensor).to(device)
+        action = ddpg.act_deterministic(obs_tensor[None, :]).detach().cpu().numpy()[0, :]
+        next_obs, reward, done, truncated, info = env.step(action)
+        if truncated:
+            breakpoint()
         
-        trainer.append(tr)
-    
-    #actor[i] is the loaded model for agent i
-    actor_load = []
-    model_dir = '/home/dongmingwang/project/Data_Driven_MPC/light_mappo/results/MyEnv/MyEnv/mappo/check/run24/models/actor_agent'
-    for agent_id in range(all_args.agent_num):
-        model = trainer[agent_id].policy.actor
-        check_point = torch.load(model_dir+f'{agent_id}.pt',weights_only=True)
-        model.load_state_dict(check_point)
-        actor_load.append(model)
-    
+        obs = next_obs.copy()
+        
+        
+        record.append(np.array(obs[1]).copy())
 
+    plt.plot(record)
+    plt.savefig('record_trace.png')
+    plt.show()
     
-    
-    rnn_states = torch.zeros((1,64))
-    masks = torch.ones((1,6))
-    # R_Actor
-    obs = envs.env.reset()
-    timesteps = 800
-    
-    rewards = []
-    obs_record = []
-    for k in range(timesteps):
-        actions = []
-        for i in range(all_args.agent_num):
-            obs_i = torch.tensor(obs[i]).unsqueeze(0)
-            action = actor_load[i](obs_i, rnn_states = rnn_states, masks = masks, deterministic=True)[0]
-            # act_np = np.squeeze(action[0].detach().numpy())
-            action = action.detach().numpy()
-            action = np.clip(action, -1, 1)
-            actions.append(action)
-        obs, reward, dones, infos = envs.env.step(actions)
-        obs_record.append(np.array(obs).copy())
-        # print(obs[1])
-        rewards.append(reward)
-
-
-
-    
-    savemat('Cruising.mat', {'tensor': obs_record})
-
-    # Set plot labels and title
-    plt.figure()
-    
-    plt.plot(np.array(rewards)[:,0,:])
-
-
-    # Save the plot as PNG
-    
-    plt.plot(np.array(rewards)[:,1,:])
-    
-    plt.plot(np.array(rewards)[:,2,:])
-    plt.savefig('agent_trajectories_3.png')
-    plt.close()
-    
-    plt.figure()
-    plt.plot(np.array([np.array(obs_record)[:,0,1]]).T)
-    plt.plot(np.array([np.array(obs_record)[:,1,1]]).T)
-    plt.plot(np.array([np.array(obs_record)[:,2,1]]).T)
-
-    plt.savefig('state_traj_varying_d')
-    plt.close()
-    
-    plt.figure()
-    plt.plot(np.array([np.array(obs_record)[:,0,5]]).T)
-    plt.plot(np.array([np.array(obs_record)[:,1,5]]).T)
-    plt.plot(np.array([np.array(obs_record)[:,2,5]]).T)
-
-    plt.savefig('state_traj_varying_v')
-    plt.close()
-
-    
-
-    
-    
-    
-
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()

@@ -124,6 +124,7 @@ class DDPG(nn.Module):
         self.actor.eval()
         a = self.actor(obs)
         self.actor.train()
+        # TODO: constaint a into a smaller interval
         return a
 
     def save_model(self):

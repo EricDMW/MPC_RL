@@ -43,7 +43,9 @@ def NlFunc(dt, x, u, ElcMap, v_r):
     dd = dEBI(1000, dv1, dv2 + 5 / 3.6, da1, da2, 0.23, 0, ElcMap, 0)
     
     # Update state vector
-    dx[0] = x[0] + d - dd + dt * x[1]
+    # TODO: update the model by a linear version
+    # dx[0] = x[0] + d - dd + dt * x[1]
+    dx[0] = x[0] + dt * x[1]
 
     return dx
 

@@ -36,11 +36,51 @@ def env_built():
     return env
 
 def get_args(device):
-
-    config = {
+    
+    # maintain loss at around 20: norm of control error smaller than 1, training time 6h
+    config_1 = {
         'dim_obs': 33,
         'dim_action': 3,
-        'dims_hidden_neurons': (128,256,512,512,256,128),
+        'dims_hidden_neurons': (128,256,512,512,256,128), # lower capacity, higher convergence speed
+        'lr_actor': 0.00001,#0.0001
+        'lr_critic': 0.00001,#0.0001
+        'smooth': 0.99,
+        'discount': 0.99,
+        'sig': 0.9,# 0.9 # define the exploration
+        'batch_size': 128,
+        'replay_buffer_size': 50000,
+        'seed': 7,
+        'max_episode': 500,
+        'device':device,
+        'reward_scale': 1,
+        'tau':0.005
+
+    }
+    
+    # maintain loss at around 12: norm of control error smaller than .5, training time 17h
+    # Attention: perform relatively worse at beginning, but better after about 250 epoches
+    config_2 = {
+        'dim_obs': 33,
+        'dim_action': 3,
+        'dims_hidden_neurons': (64,128,256,256,256,512,512,256,256,256,128,64), # higher capacity, lower convergence speed
+        'lr_actor': 0.000001, # very sensitive, influence convergence
+        'lr_critic': 0.000001, # very sensitive, influence convergence
+        'smooth': 0.99,
+        'discount': 0.99,
+        'sig': 0.9,# define the exploration
+        'batch_size': 128,
+        'replay_buffer_size': 50000, # sensitive, influence convergence
+        'seed': 7,
+        'max_episode': 500,
+        'device':device,
+        'reward_scale': 1,
+        'tau':0.005 # not very sensitive, influcence convergence
+
+    }
+    config_3 = {
+        'dim_obs': 33,
+        'dim_action': 3,
+        'dims_hidden_neurons': (128,256,256,128), # lower capacity, higher convergence speed
         'lr_actor': 0.0001,
         'lr_critic': 0.0001,
         'smooth': 0.99,
@@ -55,7 +95,8 @@ def get_args(device):
         'tau':0.005
 
     }
-    return config
+    
+    return config_1
 
 
 def main():
@@ -101,16 +142,17 @@ def main():
         truncated = False
         
         # decay exploration
-        if i_episode/config['max_episode'] % 0.1 == 0:
+        if i_episode % 100 == 0:
             ddpg.sig *= 0.4
             tqdm.write('exploration rate updated, current exploration rate {}'.format(ddpg.sig))
+        
+        # use dedayed learning rate or not    
+        # if (i_episode + 1) % 200 == 0:
+        #     ddpg.lr_actor /= 10 
+        #     tqdm.write('current actor leaning rate {}'.format(ddpg.lr_actor))
             
-        if i_episode/config['max_episode'] % 0.2 == 0:
-            ddpg.lr_actor /= 10 
-            tqdm.write('current actor leaning rate {}'.format(ddpg.lr_actor))
-            
-            ddpg.lr_critic /= 10 
-            tqdm.write('critic actor leaning rate {}'.format(ddpg.lr_critic))
+        #     ddpg.lr_critic /= 10 
+        #     tqdm.write('critic actor leaning rate {}'.format(ddpg.lr_critic))
         
  
         ret = 0.
@@ -142,7 +184,7 @@ def main():
             obs = copy.deepcopy(next_obs)
 
             if done or truncated:
-                tqdm.write("Episode {} return {} steps {}".format(i_episode, ret, env.env.step_lenth))
+                tqdm.write("Episode {} return {} steps {}".format(i_episode, ret/env.env.step_lenth, env.env.step_lenth))
         
            
         train_writer.add_scalar('Performance/episodic_return', ret/flag_lenth, i_episode)
