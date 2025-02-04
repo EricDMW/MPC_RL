@@ -4,8 +4,8 @@
 # Ignore specific directories
 cacc/
 MPC_RL/
-System_del/
+System_model/
 
 # Ignore specific files
-system_model
+System_model/
 System Model.zip
