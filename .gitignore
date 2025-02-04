@@ -1,1 +1,11 @@
+# Ignore compiled Python files
 *.pyc
+
+# Ignore specific directories
+cacc/
+MPC_RL/
+System_del/
+
+# Ignore specific files
+system_model
+System Model.zip
